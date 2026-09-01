@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "idempotent-payment-engine"
+version = "0.1.0"
+description = "A distributed payment processing and reconciliation engine designed to prevent duplicate financial transactions and detect transaction anomalies."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
