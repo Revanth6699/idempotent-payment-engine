@@ -29,3 +29,6 @@ mlruns/
 # Build
 dist/
 build/
+
+# Python build metadata
+*.egg-info/
