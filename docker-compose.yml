@@ -1,0 +1,121 @@
+name: idempotent-payment-engine
+
+services:
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: idempotent-payment-postgres
+
+    environment:
+      POSTGRES_DB: payment_engine
+      POSTGRES_USER: payment_user
+      POSTGRES_PASSWORD: payment_password
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U payment_user -d payment_engine"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+    restart: unless-stopped
+
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v26.2.2
+    container_name: idempotent-payment-redpanda
+
+    command:
+      - redpanda
+      - start
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr
+      - internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr
+      - internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr
+      - internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr
+      - redpanda:33145
+      - --advertise-rpc-addr
+      - redpanda:33145
+      - --mode
+      - dev-container
+      - --smp
+      - "1"
+
+    ports:
+      - "18081:18081"
+      - "18082:18082"
+      - "19092:19092"
+      - "19644:9644"
+
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+    restart: unless-stopped
+
+
+  mlflow:
+    build:
+      context: ./infrastructure/mlflow
+      dockerfile: Dockerfile
+
+    container_name: idempotent-payment-mlflow
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      MLFLOW_TRACKING_URI: http://0.0.0.0:5000
+
+    command:
+      - mlflow
+      - server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --backend-store-uri
+      - postgresql://payment_user:payment_password@postgres:5432/payment_engine
+      - --artifacts-destination
+      - /mlartifacts
+      - --serve-artifacts
+
+    ports:
+      - "5000:5000"
+
+    volumes:
+      - mlflow_artifacts:/mlartifacts
+
+    restart: unless-stopped
+
+
+volumes:
+  postgres_data:
+  redpanda_data:
+  mlflow_artifacts:
