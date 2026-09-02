@@ -1,5 +1,9 @@
 from fastapi import FastAPI
 
+from backend.app.api.payment_api import router as payment_router
+from backend.app.api.transaction_api import router as transaction_router
+
+
 app = FastAPI(
     title="Idempotent Payment Processing & Transaction Reconciliation Engine",
     version="0.1.0",
@@ -18,3 +22,7 @@ async def health_check():
         "service": "payment-engine",
         "version": "0.1.0",
     }
+
+
+app.include_router(payment_router)
+app.include_router(transaction_router)
