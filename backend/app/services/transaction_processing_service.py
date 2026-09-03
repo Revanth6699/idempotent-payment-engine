@@ -8,6 +8,9 @@ from backend.app.processors.simulator_processor import (
 from backend.app.services.transaction_state_service import (
     TransactionStateService,
 )
+from backend.app.services.transaction_event_service import (
+    TransactionEventService,
+)
 
 
 class TransactionProcessingService:
@@ -61,5 +64,10 @@ class TransactionProcessingService:
 
         db.commit()
         db.refresh(transaction)
+
+        TransactionEventService.publish_payment_event(
+            payment_intent=payment_intent,
+            transaction=transaction,
+        )
 
         return transaction

@@ -12,6 +12,10 @@ from backend.app.processors.simulator_processor import (
 from backend.app.services.transaction_ledger_service import (
     TransactionLedgerService,
 )
+from backend.app.services.transaction_event_service import (
+    TransactionEventService,
+)
+
 
 
 class ReconciliationService:
@@ -71,6 +75,11 @@ class ReconciliationService:
                 db=db,
                 payment_intent=payment_intent,
                 transaction=transaction,
+            )
+            TransactionEventService.publish_reconciliation_event(
+                transaction=transaction,
+                previous_status="UNKNOWN",
+                provider_transaction_id=processor_result.provider_transaction_id,
             )
 
         elif processor_result.status == ProcessorStatus.FAILED:
