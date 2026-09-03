@@ -9,6 +9,9 @@ from backend.app.processors.simulator_processor import (
     ProcessorStatus,
     SimulatorProcessor,
 )
+from backend.app.services.transaction_ledger_service import (
+    TransactionLedgerService,
+)
 
 
 class ReconciliationService:
@@ -47,7 +50,6 @@ class ReconciliationService:
             outcome=ProcessorStatus.UNKNOWN
         )
 
-
         processor_result = processor.reconcile(
             transaction.transaction_reference
         )
@@ -65,15 +67,25 @@ class ReconciliationService:
             payment_intent.status = "SUCCESS"
             reconciliation.status = "RESOLVED"
 
+            TransactionLedgerService.create_ledger_entry(
+                db=db,
+                payment_intent=payment_intent,
+                transaction=transaction,
+            )
+
         elif processor_result.status == ProcessorStatus.FAILED:
             transaction.status = "FAILED"
             payment_intent.status = "FAILED"
             reconciliation.status = "RESOLVED"
 
+            db.commit()
+
         elif processor_result.status == ProcessorStatus.UNKNOWN:
             transaction.status = "UNKNOWN"
             payment_intent.status = "UNKNOWN"
             reconciliation.status = "PENDING"
+
+            db.commit()
 
         else:
             raise ValueError(
@@ -81,7 +93,6 @@ class ReconciliationService:
                 f"{processor_result.status}"
             )
 
-        db.commit()
         db.refresh(transaction)
 
         return transaction

@@ -69,3 +69,23 @@ class PaymentProcessorSimulator:
             )
 
         raise ValueError(f"Unsupported processor outcome: {outcome}")
+
+
+
+class PaymentProcessor:
+    def process_payment(
+        self,
+        transaction_reference: str,
+        amount: Decimal,
+        currency: str,
+    ) -> dict:
+        provider_transaction_id = f"SIM-{uuid4().hex[:20].upper()}"
+
+        return {
+            "transaction_reference": transaction_reference,
+            "provider": "SIMULATOR",
+            "provider_transaction_id": provider_transaction_id,
+            "amount": amount,
+            "currency": currency.upper(),
+            "status": "SUCCESS",
+        }

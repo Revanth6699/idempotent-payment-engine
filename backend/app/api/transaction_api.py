@@ -24,6 +24,7 @@ router = APIRouter(
 def start_transaction(
     payment_intent_id: UUID,
     provider: str,
+    outcome: str = "SUCCESS",
     db: Session = Depends(get_db),
 ) -> TransactionResponse:
     """
@@ -34,6 +35,7 @@ def start_transaction(
         db=db,
         payment_intent_id=payment_intent_id,
         provider=provider,
+        outcome=outcome,
     )
 
     return transaction

@@ -16,14 +16,15 @@ class TransactionProcessingService:
         db: Session,
         payment_intent: PaymentIntent,
         transaction: Transaction,
-    ) -> Transaction:
+        processor_outcome: ProcessorStatus = ProcessorStatus.SUCCESS,
+    ) -> Transaction:    
         if transaction.status != "PROCESSING":
             raise ValueError(
                 f"Transaction cannot accept a processor result from "
                 f"status {transaction.status}"
             )
 
-        processor = SimulatorProcessor()
+        processor = SimulatorProcessor(outcome=processor_outcome)
         processor_result = processor.process(transaction.transaction_reference)
 
         if processor_result.status == ProcessorStatus.SUCCESS:
