@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import pytest
 import pandas as pd
 
 from backend.app.ml.anomaly_experiment_service import (
@@ -292,3 +292,84 @@ def test_candidate_experiment_closes_mlflow_run_on_failure(
 
     assert calls["start"] == 1
     assert calls["end"] == 1
+
+from backend.app.ml.synthetic_transaction_dataset_service import (
+    SyntheticTransactionDatasetService,
+)
+
+
+def test_evaluate_all_models_returns_all_candidates():
+    features = SyntheticTransactionDatasetService.generate(
+        sample_count=200,
+        anomaly_rate=0.05,
+    )
+
+    evaluation = AnomalyExperimentService.evaluate_all_models(
+        features
+    )
+
+    assert len(evaluation) == 4
+    assert set(evaluation["model_name"]) == {
+        "isolation_forest",
+        "local_outlier_factor",
+        "kmeans_distance",
+        "robust_zscore",
+    }
+
+    assert {
+        "precision",
+        "recall",
+        "f1_score",
+    }.issubset(evaluation.columns)
+
+
+def test_evaluate_model_predictions_returns_valid_metrics():
+    features = SyntheticTransactionDatasetService.generate(
+        sample_count=200,
+        anomaly_rate=0.05,
+    )
+
+    metrics = AnomalyExperimentService.evaluate_model_predictions(
+        features=features,
+        model_name="isolation_forest",
+    )
+
+    assert set(metrics) == {
+        "precision",
+        "recall",
+        "f1_score",
+    }
+
+    assert 0.0 <= metrics["precision"] <= 1.0
+    assert 0.0 <= metrics["recall"] <= 1.0
+    assert 0.0 <= metrics["f1_score"] <= 1.0
+
+
+def test_select_best_model_returns_supported_model():
+    features = SyntheticTransactionDatasetService.generate(
+        sample_count=200,
+        anomaly_rate=0.05,
+    )
+
+    selected_model = AnomalyExperimentService.select_best_model(
+        features
+    )
+
+    assert selected_model in (
+        "isolation_forest",
+        "local_outlier_factor",
+        "kmeans_distance",
+        "robust_zscore",
+    )
+
+
+def test_evaluate_model_predictions_requires_ground_truth():
+    features = SyntheticTransactionDatasetService.generate(
+        sample_count=200,
+    ).drop(columns=["ground_truth_anomaly"])
+
+    with pytest.raises(ValueError, match="ground_truth_anomaly"):
+        AnomalyExperimentService.evaluate_model_predictions(
+            features=features,
+            model_name="isolation_forest",
+        )

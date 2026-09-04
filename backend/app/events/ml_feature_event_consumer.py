@@ -39,7 +39,7 @@ class MLFeatureEventConsumer:
         bootstrap_servers: str = "localhost:19092",
         topic: str = "ml-feature-events",
         group_id: str = "ml-feature-event-consumer",
-        model_name: AnomalyModelName = "isolation_forest",
+        model_name: AnomalyModelName = "robust_zscore",
         feature_window_size: int = 100,
     ) -> None:
         if feature_window_size < 1:
