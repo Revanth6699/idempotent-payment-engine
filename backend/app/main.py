@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from backend.app.api.payment_api import router as payment_router
 from backend.app.api.transaction_api import router as transaction_router
 from backend.app.api.reconciliation_api import router as reconciliation_router
+from backend.app.api.risk_api import router as risk_router
+
 
 
 
@@ -29,3 +31,4 @@ async def health_check():
 app.include_router(payment_router)
 app.include_router(transaction_router)
 app.include_router(reconciliation_router)
+app.include_router(risk_router)

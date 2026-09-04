@@ -1,18 +1,13 @@
 from decimal import Decimal
+from uuid import uuid4
 
 from backend.app.core.database import SessionLocal
 from backend.app.models.payment import PaymentIntent
-from backend.app.processors.payment_processor import (
-    PaymentProcessorSimulator,
-    ProcessorStatus,
-)
+from backend.app.processors.simulator_processor import ProcessorStatus
 from backend.app.schemas.payment_schemas import PaymentIntentCreate
 from backend.app.services.payment_service import PaymentService
 from backend.app.services.transaction_orchestrator_service import (
     TransactionOrchestratorService,
-)
-from backend.app.services.transaction_processing_service import (
-    TransactionProcessingService,
 )
 
 
@@ -20,27 +15,37 @@ def test_processor_state_transitions():
     db = SessionLocal()
 
     try:
+        run_id = uuid4().hex[:12]
+
         outcomes = [
             (
-                "TEST-SUCCESS-001",
-                "TEST-IDEMP-SUCCESS-001",
+                f"TEST-SUCCESS-{run_id}",
+                f"TEST-IDEMP-SUCCESS-{run_id}",
                 ProcessorStatus.SUCCESS,
+                "SUCCESS",
             ),
             (
-                "TEST-FAILED-001",
-                "TEST-IDEMP-FAILED-001",
+                f"TEST-FAILED-{run_id}",
+                f"TEST-IDEMP-FAILED-{run_id}",
                 ProcessorStatus.FAILED,
+                "FAILED",
             ),
             (
-                "TEST-UNKNOWN-001",
-                "TEST-IDEMP-UNKNOWN-001",
+                f"TEST-UNKNOWN-{run_id}",
+                f"TEST-IDEMP-UNKNOWN-{run_id}",
                 ProcessorStatus.UNKNOWN,
+                "UNKNOWN",
             ),
         ]
 
         print("Testing processor state transitions...")
 
-        for merchant_reference, idempotency_key, outcome in outcomes:
+        for (
+            merchant_reference,
+            idempotency_key,
+            outcome,
+            expected_status,
+        ) in outcomes:
             payment_intent = PaymentService.create_payment_intent(
                 db,
                 PaymentIntentCreate(
@@ -52,24 +57,10 @@ def test_processor_state_transitions():
             )
 
             transaction = TransactionOrchestratorService.start_transaction(
-                db,
-                payment_intent.id,
-                "SIMULATED_PROVIDER",
-            )
-
-            processor_result = PaymentProcessorSimulator.process_payment(
-                transaction.id,
-                transaction.amount,
-                transaction.currency,
-                outcome,
-            )
-
-            updated_transaction = (
-                TransactionProcessingService.apply_processor_result(
-                    db,
-                    transaction.id,
-                    processor_result,
-                )
+                db=db,
+                payment_intent_id=payment_intent.id,
+                provider="SIMULATED_PROVIDER",
+                outcome=outcome.value,
             )
 
             updated_payment_intent = db.get(
@@ -77,9 +68,12 @@ def test_processor_state_transitions():
                 payment_intent.id,
             )
 
+            assert transaction.status == expected_status
+            assert updated_payment_intent.status == expected_status
+
             print(
                 f"Result: {outcome.value} | "
-                f"Transaction: {updated_transaction.status} | "
+                f"Transaction: {transaction.status} | "
                 f"PaymentIntent: {updated_payment_intent.status}"
             )
 
