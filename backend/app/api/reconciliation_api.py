@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from backend.app.core.database import get_db
+from backend.app.core.security import get_current_user
 from backend.app.models.payment import PaymentIntent, Transaction
 from backend.app.schemas.payment_schemas import TransactionResponse
 from backend.app.services.reconciliation_service import ReconciliationService
@@ -23,7 +24,14 @@ router = APIRouter(
 def reconcile_transaction(
     transaction_id: UUID,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ) -> Transaction:
+    """
+    Reconcile an UNKNOWN transaction.
+
+    Authentication is required before reconciliation is allowed.
+    """
+
     transaction = (
         db.query(Transaction)
         .filter(Transaction.id == transaction_id)

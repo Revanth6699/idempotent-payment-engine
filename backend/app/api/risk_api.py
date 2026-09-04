@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from backend.app.core.database import get_db
+from backend.app.core.security import get_current_user
 from backend.app.schemas.risk_schemas import RiskAssessmentResponse
 from backend.app.services.risk_persistence_service import (
     RiskPersistenceService,
@@ -24,9 +25,13 @@ router = APIRouter(
 def get_transaction_risk(
     transaction_id: UUID,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ) -> RiskAssessmentResponse:
     """
     Return the persisted risk assessment for a transaction.
+
+    Authentication:
+        Requires a valid JWT bearer access token.
     """
 
     risk_assessment = RiskPersistenceService.get_by_transaction_id(

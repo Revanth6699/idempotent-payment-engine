@@ -10,6 +10,40 @@ from backend.app.services.risk_persistence_service import RiskPersistenceService
 client = TestClient(app)
 
 
+def get_authenticated_headers() -> dict[str, str]:
+    email = f"risk-test-{uuid4()}@example.com"
+    password = "TestPassword123!"
+
+    register_response = client.post(
+        "/auth/register",
+        json={
+            "email": email,
+            "password": password,
+        },
+    )
+
+    assert register_response.status_code == 201
+
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email,
+            "password": password,
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    token_data = login_response.json()
+
+    assert token_data["token_type"] == "bearer"
+    assert token_data["access_token"]
+
+    return {
+        "Authorization": f"Bearer {token_data['access_token']}"
+    }
+
+
 def test_get_transaction_risk_returns_persisted_assessment(monkeypatch):
     expected_transaction_id = uuid4()
 
@@ -34,7 +68,8 @@ def test_get_transaction_risk_returns_persisted_assessment(monkeypatch):
     )
 
     response = client.get(
-        f"/risk/transactions/{expected_transaction_id}"
+        f"/risk/transactions/{expected_transaction_id}",
+        headers=get_authenticated_headers(),
     )
 
     assert response.status_code == 200
@@ -63,7 +98,8 @@ def test_get_transaction_risk_returns_404_when_not_found(monkeypatch):
     )
 
     response = client.get(
-        f"/risk/transactions/{transaction_id}"
+        f"/risk/transactions/{transaction_id}",
+        headers=get_authenticated_headers(),
     )
 
     assert response.status_code == 404
@@ -77,7 +113,8 @@ def test_get_transaction_risk_returns_404_when_not_found(monkeypatch):
 
 def test_get_transaction_risk_rejects_invalid_transaction_id():
     response = client.get(
-        "/risk/transactions/not-a-valid-uuid"
+        "/risk/transactions/not-a-valid-uuid",
+        headers=get_authenticated_headers(),
     )
 
     assert response.status_code == 422
