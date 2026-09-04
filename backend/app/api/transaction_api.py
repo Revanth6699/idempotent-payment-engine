@@ -8,6 +8,7 @@ from backend.app.schemas.payment_schemas import TransactionResponse
 from backend.app.services.transaction_orchestrator_service import (
     TransactionOrchestratorService,
 )
+from backend.app.core.security import get_current_user
 
 
 router = APIRouter(
@@ -26,7 +27,9 @@ def start_transaction(
     provider: str,
     outcome: str = "SUCCESS",
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ) -> TransactionResponse:
+
     """
     Start transaction processing for an existing PaymentIntent.
     """

@@ -7,6 +7,7 @@ from backend.app.schemas.payment_schemas import (
     PaymentIntentResponse,
 )
 from backend.app.services.idempotency_service import IdempotencyService
+from backend.app.core.security import get_current_user
 
 
 router = APIRouter(
@@ -23,6 +24,7 @@ router = APIRouter(
 def create_payment_intent(
     payment_data: PaymentIntentCreate,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ) -> PaymentIntentResponse:
     """
     Create or retrieve a PaymentIntent using the idempotency key.
