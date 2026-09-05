@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from backend.app.api.payment_api import router as payment_router
 from backend.app.api.transaction_api import router as transaction_router
 from backend.app.api.reconciliation_api import router as reconciliation_router
@@ -17,6 +18,17 @@ app = FastAPI(
         "prevent duplicate financial execution and reconcile "
         "ambiguous transaction states."
     ),
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

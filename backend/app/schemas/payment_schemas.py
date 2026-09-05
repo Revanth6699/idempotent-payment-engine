@@ -6,10 +6,26 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class PaymentIntentCreate(BaseModel):
-    merchant_reference: str = Field(min_length=1, max_length=100)
-    idempotency_key: str = Field(min_length=1, max_length=255)
-    amount: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
-    currency: str = Field(min_length=3, max_length=3)
+    merchant_reference: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    idempotency_key: str = Field(
+        min_length=1,
+        max_length=255,
+    )
+
+    amount: Decimal = Field(
+        gt=Decimal("1.00"),
+        max_digits=18,
+        decimal_places=2,
+    )
+
+    currency: str = Field(
+        min_length=3,
+        max_length=3,
+    )
 
 
 class TransactionResponse(BaseModel):

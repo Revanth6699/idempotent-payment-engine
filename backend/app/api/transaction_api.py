@@ -24,7 +24,7 @@ router = APIRouter(
 )
 def start_transaction(
     payment_intent_id: UUID,
-    provider: str,
+    provider: str = "SIMULATOR",
     outcome: str = "SUCCESS",
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -32,6 +32,10 @@ def start_transaction(
 
     """
     Start transaction processing for an existing PaymentIntent.
+
+    The normal client flow uses the default simulator provider and does not
+    expose processor outcome selection. The outcome parameter remains available
+    for authorized failure/unknown simulation.
     """
 
     transaction = TransactionOrchestratorService.start_transaction(
