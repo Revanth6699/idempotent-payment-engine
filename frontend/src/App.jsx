@@ -15,7 +15,6 @@ import {
 import "./styles.css";
 
 const HISTORY_KEY = "payment_engine_transaction_history";
-const PROFILE_NAME_KEY = "payment_engine_profile_name";
 
 function loadHistory() {
   try {
@@ -218,6 +217,13 @@ function App() {
     Boolean(getAccessToken()),
   );
 
+  const [userEmail, setUserEmail] = useState(
+    () =>
+      localStorage.getItem(
+        "payment_engine_user_email",
+      ) || "",
+  );
+
   const [view, setView] = useState("dashboard");
   const [history, setHistory] = useState(loadHistory());
 
@@ -232,18 +238,20 @@ function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [receiverName, setReceiverName] =
-    useState("");
-
-  const [receiverDetails, setReceiverDetails] =
+  const [merchantReference, setMerchantReference] =
     useState("");
 
   const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState("INR");
 
-  const [displayName, setDisplayName] =
-    useState(() =>
-      localStorage.getItem(PROFILE_NAME_KEY) || "",
-    );
+  const [idempotencyKey, setIdempotencyKey] =
+    useState("");
+
+  const [provider, setProvider] =
+    useState("SIMULATOR");
+
+  const [outcome, setOutcome] =
+    useState("SUCCESS");
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -294,6 +302,12 @@ function App() {
       } else {
         await loginUser(email, password);
 
+        localStorage.setItem(
+          "payment_engine_user_email",
+          email,
+        );
+
+        setUserEmail(email);
         setAuthenticated(true);
         setMessage("Welcome back.");
         setPassword("");
@@ -307,30 +321,16 @@ function App() {
 
   function logout() {
     clearTokens();
+    localStorage.removeItem(
+      "payment_engine_user_email",
+    );
 
+    setUserEmail("");
     setAuthenticated(false);
     setSelectedTransaction(null);
     setRisk(null);
     setMonitoring(null);
     setView("dashboard");
-  }
-
-  function saveProfileName(nextName) {
-    const normalizedName = nextName.trim();
-
-    if (!normalizedName) {
-      setError("Display name cannot be empty.");
-      return false;
-    }
-
-    localStorage.setItem(
-      PROFILE_NAME_KEY,
-      normalizedName,
-    );
-
-    setDisplayName(normalizedName);
-    setMessage("Profile changes saved.");
-    return true;
   }
 
   async function handlePayment(event) {
@@ -341,58 +341,23 @@ function App() {
     setMessage("");
 
     try {
-      const normalizedReceiverName =
-        receiverName.trim();
-      const normalizedReceiverDetails =
-        receiverDetails.trim();
-      const numericAmount = Number(amount);
-
-      if (!normalizedReceiverName) {
-        throw new Error("Receiver name is required.");
-      }
-
-      if (!normalizedReceiverDetails) {
-        throw new Error(
-          "Receiver details or UPI ID are required.",
-        );
-      }
-
-      if (
-        !Number.isFinite(numericAmount) ||
-        numericAmount < 1
-      ) {
-        throw new Error(
-          "Payment amount must be at least INR 1.00.",
-        );
-      }
-
-      const merchantReference =
-        `PAY-${Date.now()}`;
-
-      const idempotencyKey =
-        crypto.randomUUID();
-
       const paymentIntent =
         await createPaymentIntent({
-          merchant_reference:
-            merchantReference,
-          idempotency_key:
-            idempotencyKey,
-          amount: numericAmount.toFixed(2),
-          currency: "INR",
+          merchant_reference: merchantReference,
+          idempotency_key: idempotencyKey,
+          amount,
+          currency: currency.toUpperCase(),
         });
 
       const transaction =
         await startTransaction(
           paymentIntent.id,
+          provider,
+          outcome,
         );
 
       const record = {
         ...transaction,
-        receiver_name:
-          normalizedReceiverName,
-        receiver_details:
-          normalizedReceiverDetails,
         merchant_reference:
           paymentIntent.merchant_reference,
         idempotency_key:
@@ -414,14 +379,14 @@ function App() {
       setRisk(null);
 
       setMessage(
-        `Payment ${transaction.status.toLowerCase()}.`,
+        `Transaction ${transaction.status.toLowerCase()}.`,
       );
 
       setView("receipt");
 
-      setReceiverName("");
-      setReceiverDetails("");
+      setMerchantReference("");
       setAmount("");
+      setIdempotencyKey("");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -534,6 +499,7 @@ function App() {
         <Topbar
           view={view}
           monitoring={monitoring}
+          userEmail={userEmail}
           onProfile={() => navigate("profile")}
           onMenu={() => navigate("dashboard")}
         />
@@ -594,14 +560,20 @@ function App() {
 
           {view === "payment" && (
             <PaymentPage
-              receiverName={receiverName}
-              setReceiverName={setReceiverName}
-              receiverDetails={receiverDetails}
-              setReceiverDetails={
-                setReceiverDetails
+              merchantReference={merchantReference}
+              setMerchantReference={
+                setMerchantReference
               }
               amount={amount}
               setAmount={setAmount}
+              currency={currency}
+              setCurrency={setCurrency}
+              idempotencyKey={idempotencyKey}
+              setIdempotencyKey={setIdempotencyKey}
+              provider={provider}
+              setProvider={setProvider}
+              outcome={outcome}
+              setOutcome={setOutcome}
               loading={loading}
               onSubmit={handlePayment}
               onCancel={() => navigate("dashboard")}
@@ -649,9 +621,7 @@ function App() {
 
           {view === "profile" && (
             <ProfilePage
-              email={email}
-              displayName={displayName}
-              onSave={saveProfileName}
+              email={userEmail}
               onBack={() =>
                 navigate("dashboard")
               }
@@ -1225,11 +1195,18 @@ function Sidebar({
 function Topbar({
   view,
   monitoring,
+  userEmail,
   onProfile,
 }) {
+  const username = userEmail
+    ? userEmail.split("@")[0]
+    : "Account";
+
   const pageDetails = {
     dashboard: {
-      title: "Good to see you",
+      title: userEmail
+        ? `Welcome, ${username}`
+        : "Welcome",
       subtitle:
         "Monitor your payment operations in real time.",
     },
@@ -1314,7 +1291,16 @@ function Topbar({
           aria-label="Open profile"
         >
           <span className="avatar">
-            PE
+            {userEmail
+              ? username
+                  .slice(0, 2)
+                  .toUpperCase()
+              : "PE"}
+          </span>
+
+          <span className="topbar-profile-copy">
+            <strong>{username}</strong>
+            <small>Account</small>
           </span>
 
           <Icon
@@ -1350,13 +1336,14 @@ function Dashboard({
           </div>
 
           <h2>
-            Every transaction.
+            Every payment.
             <span> Accounted for.</span>
           </h2>
 
           <p>
-            Track execution, identify unknown outcomes
-            and keep payment operations under control.
+            Execute, track and reconcile financial
+            transactions through one protected
+            operations platform.
           </p>
 
           <button
@@ -1369,7 +1356,16 @@ function Dashboard({
           </button>
         </div>
 
-        <div className="dashboard-hero-visual">
+        <div
+          className="dashboard-hero-visual"
+          style={{
+            background:
+              "radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.18), transparent 42%), linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(124, 58, 237, 0.16))",
+            border: "1px solid rgba(99, 102, 241, 0.12)",
+            borderRadius: "22px",
+            boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.75)",
+          }}
+        >
           <div className="hero-orbit orbit-one" />
           <div className="hero-orbit orbit-two" />
           <div className="hero-orbit orbit-three" />
@@ -1649,12 +1645,18 @@ function ServiceStatus({
    ========================================================= */
 
 function PaymentPage({
-  receiverName,
-  setReceiverName,
-  receiverDetails,
-  setReceiverDetails,
+  merchantReference,
+  setMerchantReference,
   amount,
   setAmount,
+  currency,
+  setCurrency,
+  idempotencyKey,
+  setIdempotencyKey,
+  provider,
+  setProvider,
+  outcome,
+  setOutcome,
   loading,
   onSubmit,
   onCancel,
@@ -1672,8 +1674,8 @@ function PaymentPage({
               <h3>Send a payment</h3>
 
               <p>
-                Enter the beneficiary details and
-                amount to initiate a payment.
+                Create a transaction through the
+                protected payment orchestration flow.
               </p>
             </div>
 
@@ -1689,15 +1691,15 @@ function PaymentPage({
           >
             <div className="form-section-title">
               <span>01</span>
-              Beneficiary details
+              Payment details
             </div>
 
             <div className="form-grid-modern">
               <Field
-                label="Receiver name"
-                value={receiverName}
-                onChange={setReceiverName}
-                placeholder="e.g. Revanth Kumar"
+                label="Merchant reference"
+                value={merchantReference}
+                onChange={setMerchantReference}
+                placeholder="ORDER-2026-001"
               />
 
               <Field
@@ -1705,43 +1707,91 @@ function PaymentPage({
                 type="number"
                 value={amount}
                 onChange={setAmount}
-                placeholder="1.00"
-                min="1.00"
+                placeholder="1000.00"
+                min="0.01"
                 step="0.01"
               />
 
-              <div className="field-group modern-field full-width-field">
-                <label>Receiver details / UPI ID</label>
+              <SelectField
+                label="Currency"
+                value={currency}
+                onChange={setCurrency}
+                options={[
+                  ["INR", "Indian Rupee · INR"],
+                  ["USD", "US Dollar · USD"],
+                  ["EUR", "Euro · EUR"],
+                ]}
+              />
 
-                <input
-                  type="text"
-                  value={receiverDetails}
-                  onChange={(event) =>
-                    setReceiverDetails(
-                      event.target.value,
-                    )
-                  }
-                  placeholder="e.g. receiver@upi or account details"
-                  required
-                />
-              </div>
+              <Field
+                label="Idempotency key"
+                value={idempotencyKey}
+                onChange={setIdempotencyKey}
+                placeholder="PAYMENT-UNIQUE-001"
+              />
             </div>
 
-            <div className="payment-info-strip">
-              <div className="payment-info-icon">
+            <div className="form-section-title second">
+              <span>02</span>
+              Processor simulation
+            </div>
+
+            <div className="form-grid-modern">
+              <SelectField
+                label="Processor"
+                value={provider}
+                onChange={setProvider}
+                options={[
+                  [
+                    "SIMULATOR",
+                    "Payment simulator",
+                  ],
+                ]}
+              />
+
+              <SelectField
+                label="Processor outcome"
+                value={outcome}
+                onChange={setOutcome}
+                options={[
+                  [
+                    "SUCCESS",
+                    "Success",
+                  ],
+                  [
+                    "FAILED",
+                    "Failed",
+                  ],
+                  [
+                    "UNKNOWN",
+                    "Unknown",
+                  ],
+                ]}
+              />
+            </div>
+
+            <div className="simulation-banner">
+              <div className="simulation-banner-icon">
                 <Icon
-                  name="shield"
-                  size={17}
+                  name={
+                    outcome === "UNKNOWN"
+                      ? "clock"
+                      : outcome === "FAILED"
+                        ? "close"
+                        : "activity"
+                  }
+                  size={18}
                 />
               </div>
 
               <div>
-                <strong>Secure payment initiation</strong>
+                <strong>
+                  Authorized simulator
+                </strong>
 
                 <span>
-                  Payments are processed in INR with
-                  duplicate-protection and transaction
-                  status controls.
+                  Processor outcomes are simulated
+                  for transaction reliability testing.
                 </span>
               </div>
             </div>
@@ -1763,7 +1813,7 @@ function PaymentPage({
               >
                 {loading
                   ? "Processing..."
-                  : "Send payment"}
+                  : "Create & process payment"}
 
                 {!loading && (
                   <Icon
@@ -1780,45 +1830,45 @@ function PaymentPage({
           <div className="payment-side-glow" />
 
           <span className="section-kicker light">
-            Payment controls
+            Reliability layer
           </span>
 
           <h3>
-            Secure payment.
-            <span> Clear status.</span>
+            One payment intent.
+            <span> One execution.</span>
           </h3>
 
           <p>
-            Track payment initiation, processing and
-            settlement status from a single operations
-            view.
+            The backend protects the payment lifecycle
+            with idempotency and state-controlled
+            transaction processing.
           </p>
 
           <div className="payment-flow">
             <PaymentFlowStep
               number="01"
-              title="Initiate"
-              text="Beneficiary details verified"
+              title="Request"
+              text="Payment intent created"
               active
             />
 
             <PaymentFlowStep
               number="02"
-              title="Process"
-              text="Payment submitted for processing"
+              title="Execute"
+              text="Processor invoked once"
             />
 
             <PaymentFlowStep
               number="03"
-              title="Settle"
-              text="Final transaction status recorded"
+              title="Reconcile"
+              text="Unknown outcomes resolved"
             />
           </div>
 
           <div className="payment-side-footer">
             <Icon name="shield" size={17} />
             <span>
-              Transaction controls enabled
+              Idempotency protection enabled
             </span>
           </div>
         </aside>
@@ -2640,28 +2690,17 @@ function RiskMetric({
 
 function ProfilePage({
   email,
-  displayName,
-  onSave,
   onBack,
 }) {
   const [editing, setEditing] =
     useState(false);
 
-  const [draftName, setDraftName] =
-    useState(displayName);
+  const username = email
+    ? email.split("@")[0]
+    : "Account";
 
-  function handleSave() {
-    const saved = onSave(draftName);
-
-    if (saved) {
-      setEditing(false);
-    }
-  }
-
-  function handleCancel() {
-    setDraftName(displayName);
-    setEditing(false);
-  }
+  const [displayName, setDisplayName] =
+    useState(username);
 
   return (
     <div className="page-enter">
@@ -2674,65 +2713,43 @@ function ProfilePage({
           <div className="profile-main-content">
             <div className="profile-heading">
               <div className="large-avatar">
-                {(
-                  displayName ||
-                  email ||
-                  "PE"
-                )
-                  .slice(0, 2)
-                  .toUpperCase()}
+                {email
+                  ? email
+                      .slice(0, 2)
+                      .toUpperCase()
+                  : "PE"}
               </div>
 
-              <div className="profile-heading-copy">
+              <div>
                 <span className="section-kicker">
                   Account profile
                 </span>
 
                 <h3>
-                  {displayName || "Your profile"}
+                  {displayName || username}
                 </h3>
 
                 <p>{email}</p>
               </div>
 
-              {!editing ? (
-                <button
-                  type="button"
-                  className="outline-button profile-edit-button"
-                  onClick={() =>
-                    setEditing(true)
-                  }
-                >
-                  <Icon
-                    name="profile"
-                    size={16}
-                  />
-                  Edit profile
-                </button>
-              ) : (
-                <div className="profile-action-group">
-                  <button
-                    type="button"
-                    className="outline-button"
-                    onClick={handleCancel}
-                  >
-                    Cancel
-                  </button>
+              <button
+                type="button"
+                className="outline-button profile-edit-button"
+                onClick={() =>
+                  setEditing(
+                    (current) => !current,
+                  )
+                }
+              >
+                <Icon
+                  name="profile"
+                  size={16}
+                />
 
-                  <button
-                    type="button"
-                    className="gradient-button"
-                    onClick={handleSave}
-                    disabled={!draftName.trim()}
-                  >
-                    <Icon
-                      name="check"
-                      size={16}
-                    />
-                    Save changes
-                  </button>
-                </div>
-              )}
+                {editing
+                  ? "Cancel"
+                  : "Edit profile"}
+              </button>
             </div>
 
             <div className="profile-divider" />
@@ -2748,13 +2765,13 @@ function ProfilePage({
                   <label>Display name</label>
 
                   <input
-                    value={draftName}
+                    value={displayName}
                     onChange={(event) =>
-                      setDraftName(
+                      setDisplayName(
                         event.target.value,
                       )
                     }
-                    placeholder="Add your name"
+                    placeholder={username}
                     disabled={!editing}
                   />
                 </div>
@@ -2770,19 +2787,7 @@ function ProfilePage({
                 </div>
               </div>
 
-              {editing && (
-                <div className="profile-edit-note">
-                  <Icon
-                    name="check"
-                    size={16}
-                  />
 
-                  <span>
-                    Update your display name and save
-                    the changes to this account.
-                  </span>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -2796,7 +2801,7 @@ function ProfilePage({
           </div>
 
           <span className="section-kicker light">
-            Account security
+            Security
           </span>
 
           <h3>
@@ -2805,9 +2810,8 @@ function ProfilePage({
           </h3>
 
           <p>
-            Your session is secured with access and
-            refresh tokens for authenticated payment
-            operations.
+            Authentication uses the application's
+            JWT access and refresh token flow.
           </p>
 
           <div className="security-status">
