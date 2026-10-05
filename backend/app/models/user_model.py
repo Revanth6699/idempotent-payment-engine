@@ -1,34 +1,40 @@
+import uuid
 from datetime import datetime
-from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, DateTime, String, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.core.database import Base
 
 
 class User(Base):
-    """
-    Application user.
-
-    The database UUID is the internal primary key.
-    `user_id` is the platform-visible identifier used
-    when users send and receive payments.
-    """
+    """Application user and permanent platform identity."""
 
     __tablename__ = "users"
 
-    id: Mapped[UUID] = mapped_column(
+    # ============================================================
+    # INTERNAL DATABASE ID
+    # ============================================================
+
+    id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,
-        default=uuid4,
+        default=uuid.uuid4,
     )
 
+    # ============================================================
+    # PLATFORM USER ID
+    # ============================================================
+
     user_id: Mapped[str] = mapped_column(
-        String(30),
-        unique=True,
+        String(20),
         nullable=False,
+        unique=True,
         index=True,
     )
+
+    # ============================================================
+    # PERSONAL INFORMATION
+    # ============================================================
 
     first_name: Mapped[str] = mapped_column(
         String(100),
@@ -40,30 +46,46 @@ class User(Base):
         nullable=False,
     )
 
+    # ============================================================
+    # CONTACT INFORMATION
+    # ============================================================
+
     email: Mapped[str] = mapped_column(
         String(255),
-        unique=True,
         nullable=False,
+        unique=True,
         index=True,
     )
 
     mobile_number: Mapped[str] = mapped_column(
-        String(15),
-        unique=True,
+        String(20),
         nullable=False,
+        unique=True,
         index=True,
     )
+
+    # ============================================================
+    # AUTHENTICATION
+    # ============================================================
 
     password_hash: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
     )
 
+    # ============================================================
+    # ACCOUNT STATUS
+    # ============================================================
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
-        default=True,
         nullable=False,
+        default=True,
     )
+
+    # ============================================================
+    # TIMESTAMPS
+    # ============================================================
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -76,16 +98,4 @@ class User(Base):
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
-    )
-
-    sent_payment_intents = relationship(
-        "PaymentIntent",
-        foreign_keys="PaymentIntent.sender_user_id",
-        back_populates="sender",
-    )
-
-    received_payment_intents = relationship(
-        "PaymentIntent",
-        foreign_keys="PaymentIntent.receiver_user_id",
-        back_populates="receiver",
     )
